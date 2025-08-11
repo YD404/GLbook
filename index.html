@@ -63,10 +63,8 @@
         <div class="flex gap-2 w-full items-center">
           <button id="start-cam" class="btn w-full sm:w-auto">カメラ開始</button>
           <button id="capture-btn" class="btn w-full sm:w-auto" disabled>撮影して認識</button>
-          <label class="btn-secondary w-full sm:w-auto text-center cursor-pointer">
-            画像選択
-            <input id="img-file" type="file" accept="image/*" class="sr-only" />
-          </label>
+            <button id="pick-btn" class="btn-secondary w-full sm:w-auto">画像選択</button>
+            <input id="img-file" type="file" accept="image/*" class="hidden" />
         </div>
         <div class="flex items-center gap-2 w-full">
           <label class="text-xs sm:text-sm whitespace-nowrap">しきい値</label>

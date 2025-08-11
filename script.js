@@ -26,6 +26,8 @@ const apiHint    = document.getElementById('api-hint');
 
 const canvas = document.getElementById('canvas');
 const ctx     = canvas.getContext('2d');
+const imgFile     = document.getElementById('img-file');
+const pickBtn     = document.getElementById('pick-btn');
 
 /* 状態 */
 let isProcessing = false;
@@ -220,40 +222,69 @@ function fileToBase64Only(file) {
 }
 
 /* ---- 照合 ---- */
-function renderMatch(ocrText) {
+// ---- 行単位の照合 ----
+function renderMatchPerLine(ocrText) {
   if (!fuse || titles.length === 0) {
     matchDiv.innerHTML = '<div class="text-gray-500 text-sm">タイトルDBが未ロードです。</div>';
     return;
   }
-  const ocrNorm = norm(ocrText);
-  const exact = titles.find(t => t.norm === ocrNorm);
+
   const th = parseFloat(thresholdInput.value);
-  const res = fuse.search(ocrNorm, { limit: 10 });
+  const lines = String(ocrText).split(/\r?\n/)
+    .map(s => s.trim())
+    .filter(s => s.length >= 2);
+
+  if (lines.length === 0) {
+    matchDiv.innerHTML = '<div class="text-gray-500 text-sm">有効な行がありません。</div>';
+    return;
+  }
 
   let html = '';
-  if (exact) {
-    html += `<div class="mb-2 text-green-700 font-semibold">厳密一致：${escapeHtml(exact.raw)}</div>`;
-  } else if (res.length) {
-    const best = res[0];
-    const conf = Math.max(0, 1 - best.score);
-    const isHit = best.score <= th;
-    html += isHit
-      ? `<div class="mb-2 text-emerald-700 font-semibold">一致（ファジー）：${escapeHtml(best.item.raw)} <span class="text-xs text-emerald-800">(信頼度 ${(conf*100).toFixed(1)}%)</span></div>`
-      : `<div class="mb-2 text-amber-700 font-semibold">候補（しきい値未満）：${escapeHtml(best.item.raw)} <span class="text-xs text-amber-800">(信頼度 ${(conf*100).toFixed(1)}%)</span></div>`;
-  } else {
-    html += `<div class="mb-2 text-gray-600">候補なし</div>`;
+  const MAX_LINES = 50;
+  const target = lines.slice(0, MAX_LINES);
+
+  for (const line of target) {
+    const ocrNorm = norm(line);
+    const exact = titles.find(t => t.norm === ocrNorm);
+    const res = fuse.search(ocrNorm, { limit: 10 });
+
+    // 厳密一致なし、かつ候補ゼロの場合はスキップ
+    if (!exact && (!res.length || (1 - res[0].score) <= 0)) {
+      continue;
+    }
+
+    html += `<div class="mb-4">`;
+    html += `<div class="text-xs text-gray-500 mb-1">OCR行：</div>`;
+    html += `<div class="font-medium mb-1">${escapeHtml(line)}</div>`;
+
+    if (exact) {
+      html += `<div class="mb-1 text-green-700 font-semibold">厳密一致：${escapeHtml(exact.raw)}</div>`;
+    } else if (res.length) {
+      const best = res[0];
+      const conf = Math.max(0, 1 - best.score);
+      const isHit = best.score <= th;
+      html += isHit
+        ? `<div class="mb-1 text-emerald-700 font-semibold">一致（ファジー）：${escapeHtml(best.item.raw)} <span class="text-xs text-emerald-800">(信頼度 ${(conf*100).toFixed(1)}%)</span></div>`
+        : `<div class="mb-1 text-amber-700 font-semibold">候補（しきい値未満）：${escapeHtml(best.item.raw)} <span class="text-xs text-amber-800">(信頼度 ${(conf*100).toFixed(1)}%)</span></div>`;
+
+      html += `<div class="text-xs text-gray-600">候補上位：</div><ul class="list-disc pl-5 text-sm">`;
+      for (const r of res.slice(0, 5)) {
+        const c = Math.max(0, 1 - r.score);
+        html += `<li>${escapeHtml(r.item.raw)} <span class="text-xs text-gray-500">(信頼度 ${(c*100).toFixed(1)}%)</span></li>`;
+      }
+      html += `</ul>`;
+    }
+    html += `</div>`;
   }
 
-  if (res.length) {
-    html += `<div class="text-sm text-gray-700">候補上位：</div><ul class="list-disc pl-5 text-sm">`;
-    for (const r of res.slice(0, 5)) {
-      const c = Math.max(0, 1 - r.score);
-      html += `<li>${escapeHtml(r.item.raw)} <span class="text-xs text-gray-500">(信頼度 ${(c*100).toFixed(1)}%)</span></li>`;
-    }
-    html += `</ul>`;
+  if (lines.length > MAX_LINES) {
+    html += `<div class="text-xs text-gray-500">※ 行数が多いため先頭 ${MAX_LINES} 行のみ判定しています。</div>`;
   }
-  matchDiv.innerHTML = html;
+
+  matchDiv.innerHTML = html || '<div class="text-gray-500 text-sm">一致する行はありませんでした。</div>';
 }
+
+
 
 /* ---- イベント ---- */
 thresholdInput.addEventListener('input', () => {
@@ -287,7 +318,7 @@ captureBtn.addEventListener('click', async () => {
     const text = await ocrWithGeminiFromCanvas();
     resultDiv.textContent = text || 'テキストが検出されませんでした。';
     if (text) copyBtn.classList.remove('hidden');
-    renderMatch(text || '');
+    renderMatchPerLine(text || '');
   } catch (e) {
     console.error(e);
     resultDiv.textContent = `エラー: ${e.message}`;
@@ -307,7 +338,7 @@ imgFile.addEventListener('change', async (ev) => {
     const text = await ocrWithGeminiFromFile(f);
     resultDiv.textContent = text || 'テキストが検出されませんでした。';
     if (text) copyBtn.classList.remove('hidden');
-    renderMatch(text || '');
+    renderMatchPerLine(text || '');
   } catch (e) {
     console.error(e);
     resultDiv.textContent = `エラー: ${e.message}`;
@@ -326,3 +357,6 @@ reloadDbBtn.addEventListener('click', loadCsvFromSameDir);
   await loadCsvFromSameDir();   // books_database.csv 自動ロード
   // カメラはユーザ操作で開始（自動再生制限対策）
 })();
+
+// 画像選択ボタン → input をプログラム起動
+pickBtn.addEventListener('click', () => imgFile.click());
