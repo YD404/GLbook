@@ -5,6 +5,7 @@ const video = document.getElementById('video');
 const startCamBtn = document.getElementById('start-cam');
 const captureBtn  = document.getElementById('capture-btn');
 const imgFile     = document.getElementById('img-file');
+const pickBtn     = document.getElementById('pick-btn');
 
 const thresholdInput = document.getElementById('threshold');
 const thresholdVal   = document.getElementById('thresholdVal');
@@ -26,8 +27,6 @@ const apiHint    = document.getElementById('api-hint');
 
 const canvas = document.getElementById('canvas');
 const ctx     = canvas.getContext('2d');
-const imgFile     = document.getElementById('img-file');
-const pickBtn     = document.getElementById('pick-btn');
 
 /* 状態 */
 let isProcessing = false;
